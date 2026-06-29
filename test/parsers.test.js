@@ -23,6 +23,9 @@ test("gaceta fixtures", () => {
   assert.equal(resultados.length, 1);
   assert.equal(resultados[0].numero, "3648");
   assert.equal(extraerEnlacesSiguiente($search).length, 1);
+
+  const $empty = cheerio.load(fixture("gaceta-search-empty.html"));
+  assert.equal(extraerResultadosContenido($empty).length, 0);
 });
 
 test("digesto search fixture", () => {
@@ -30,6 +33,11 @@ test("digesto search fixture", () => {
   const resultados = extraerDigestoResultados($);
   assert.equal(resultados.length, 1);
   assert.equal(resultados[0].titulo, "Ley Nº 3230 del 29 de junio de 2007");
+
+  const $multi = cheerio.load(fixture("digesto-search-multi.html"));
+  const multiple = extraerDigestoResultados($multi);
+  assert.equal(multiple.length, 2);
+  assert.equal(multiple[1].titulo, "Ley Nº 1500 del 12 de agosto de 2008");
 });
 
 test("csj legislacion search fixture", () => {
@@ -38,6 +46,9 @@ test("csj legislacion search fixture", () => {
   assert.equal(resultados.length, 1);
   assert.equal(resultados[0].titulo, "Ley 5134 /2013");
   assert.equal(resultados[0].institucion, "Ministerio de Hacienda");
+
+  const $empty = cheerio.load(fixture("csj-legislacion-search-empty.html"));
+  assert.equal(extraerCsjResultados($empty, 10).length, 0);
 });
 
 test("bacn slugify", () => {
@@ -53,4 +64,7 @@ test("jurisprudencia data fixture", () => {
   assert.equal(rows.length, 1);
   assert.equal(rows[0].codigo, "12345");
   assert.equal(rows[0].sala, "SALA CONSTITUCIONAL");
+
+  const empty = JSON.parse(fixture("csj-jurisprudencia-data-empty.json"));
+  assert.equal(parseJurisprudenciaRows(empty).length, 0);
 });

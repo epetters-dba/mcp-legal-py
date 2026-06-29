@@ -18,3 +18,13 @@ export function successContent(payload) {
     ...payload,
   });
 }
+
+export function searchContent({ source, query, total, resultados, ...rest }) {
+  return successContent({
+    source,
+    query,
+    total: Number.isFinite(total) ? total : resultados?.length ?? 0,
+    resultados,
+    ...rest,
+  });
+}

@@ -1,6 +1,6 @@
 import * as cheerio from "cheerio";
 import { createClient, assertOk, cleanText } from "../lib/http-client.js";
-import { errorContent, successContent } from "../lib/mcp-output.js";
+import { errorContent, searchContent, successContent } from "../lib/mcp-output.js";
 
 /**
  * Conector: Leyes Paraguayas (BACN - Biblioteca y Archivo del Congreso Nacional)
@@ -70,7 +70,7 @@ export function registerLeyesTools(server, { z }) {
         });
       }
 
-      return successContent({ source: BASE_URL, query, total: resultados.length, resultados });
+      return searchContent({ source: BASE_URL, query, total: resultados.length, resultados });
     }
   );
 

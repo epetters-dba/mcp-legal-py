@@ -1,6 +1,6 @@
 import * as cheerio from "cheerio";
 import { createClient, assertOk, cleanText, resolveUrl } from "../lib/http-client.js";
-import { errorContent, successContent } from "../lib/mcp-output.js";
+import { errorContent, searchContent, successContent } from "../lib/mcp-output.js";
 
 /**
  * Conector: Digesto Legislativo (Honorable Cámara de Senadores)
@@ -159,7 +159,7 @@ export function registerDigestoTools(server, { z }) {
       const pagina = cleanText($("body").text());
 
       if (resultados.length > 0) {
-        return successContent({
+        return searchContent({
           source: BASE_URL,
           query,
           categoria,

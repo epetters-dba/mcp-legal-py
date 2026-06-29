@@ -1,6 +1,6 @@
 import * as cheerio from "cheerio";
 import { createClient, assertOk, cleanText, resolveUrl } from "../lib/http-client.js";
-import { errorContent, successContent } from "../lib/mcp-output.js";
+import { errorContent, searchContent, successContent } from "../lib/mcp-output.js";
 
 /**
  * Conector: Gaceta Oficial de la República del Paraguay
@@ -184,11 +184,11 @@ export function registerGacetaTools(server, { z }) {
       const paginacion = extraerEnlacesSiguiente($);
 
       if (resultados.length > 0) {
-        return successContent({
+        return searchContent({
           source: BASE_URL,
           query,
-          total: resultados.length,
           resultados,
+          total: resultados.length,
           paginacion,
           endpoint: `${BASE_URL}/index/buscarContenidos`,
         });

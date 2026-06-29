@@ -1,6 +1,6 @@
 import * as cheerio from "cheerio";
 import { createClient, assertOk, cleanText } from "../lib/http-client.js";
-import { errorContent, successContent } from "../lib/mcp-output.js";
+import { errorContent, searchContent, successContent } from "../lib/mcp-output.js";
 
 /**
  * Conector: Base Legislativa de la Corte Suprema de Justicia
@@ -123,12 +123,13 @@ export function registerCsjLegislacionTools(server, { z }) {
       const resultados = extraerResultados($, limit);
 
       if (resultados.length > 0) {
-        return successContent({
+        return searchContent({
           source: `${BASE_URL}${PATH}`,
           query,
           total_mostrado: resultados.length,
           resultados,
           endpoint: `${BASE_URL}/legislacion/Consulta/Resultado`,
+          total: resultados.length,
         });
       }
 
