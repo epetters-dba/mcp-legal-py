@@ -38,7 +38,7 @@ A diferencia de `mcp-legal-ar` —que empaqueta conectores de terceros ya probad
 
 Las herramientas marcadas 🚧 no inventan resultados: si no pueden confirmar el endpoint real, devuelven un mensaje explicando exactamente qué falta y cómo completarlo (en general: abrir el sitio, hacer una búsqueda real con la pestaña *Network* del navegador abierta, y compartir esa petición para terminar de cablear el parseo).
 
-**Si tenés Claude Code o Claude en Chrome con un navegador conectado**, pedile que abra cada sitio en borrador, haga una búsqueda de prueba, y te traiga la URL/payload real — con eso, completar cada conector es un cambio chico en su archivo correspondiente dentro de `src/connectors/`.
+**Si tenés Claude Code o Claude en Chrome con un navegador conectado**, pedile que abra cada sitio en borrador, haga una búsqueda de prueba, y te traiga la URL/payload real. Con eso, completar cada conector es un cambio chico en su archivo correspondiente dentro de `src/connectors/`.
 
 ---
 
@@ -157,10 +157,18 @@ El resto de las fuentes sigue funcionando normalmente; son módulos independient
 
 Para mantener el hub fácil de ampliar, los conectores siguen estas reglas:
 
-- Las herramientas devuelven JSON textual con una forma consistente.
+- Las herramientas devuelven JSON textual con una forma consistente: `ok`, `source`, `query` cuando aplica, `total` y `resultados` en búsquedas, más campos específicos de cada fuente.
 - Los helpers compartidos viven en `src/lib/`.
-- Las respuestas reales de los sitios que valga la pena conservar se pueden guardar como fixtures en `test/fixtures/`.
+- Las respuestas reales de los sitios que valga la pena conservar se guardan como fixtures en `test/fixtures/`.
 - Si una fuente cambia mucho, conviene fijar primero el endpoint y después el parseo.
+
+## Tests
+
+La suite actual cubre parseadores y fixtures representativos de Gaceta Oficial, Digesto Legislativo, CSJ Legislación, BACN y Jurisprudencia CSJ.
+
+```
+npm test
+```
 
 ---
 
