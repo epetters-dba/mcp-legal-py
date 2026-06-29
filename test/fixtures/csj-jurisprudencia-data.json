@@ -1,0 +1,15 @@
+{
+  "draw": 1,
+  "recordsTotal": 1,
+  "recordsFiltered": 1,
+  "data": [
+    {
+      "CodigoJurisprudencia": "12345",
+      "TipoResolucionJudicial": { "DescripcionTipoResolucionJudicial": "Acuerdo y Sentencia" },
+      "NoResolucionJudicial": "42",
+      "FechaResolucionJudicial": "/Date(1704067200000)/",
+      "CaratulaPublicacion": "AMPARO CONSTITUCIONAL",
+      "Sala": { "DescripcionSala": "SALA CONSTITUCIONAL" }
+    }
+  ]
+}

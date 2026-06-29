@@ -1,0 +1,25 @@
+{
+  "name": "mcp-legal-py",
+  "version": "0.1.0",
+  "description": "Hub MCP unificado para abogados paraguayos - fuentes jurídicas oficiales de Paraguay en un solo conector",
+  "type": "module",
+  "main": "src/index.js",
+  "bin": {
+    "mcp-legal-py": "src/index.js"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "inspect": "npx @modelcontextprotocol/inspector node src/index.js",
+    "test": "node --test"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "axios": "^1.7.9",
+    "cheerio": "^1.0.0",
+    "zod": "^3.24.1"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "mcp-legal-py": {
+      "command": "node",
+      "args": ["/ruta/completa/a/mcp-legal-py/src/index.js"]
+    }
+  }
+}

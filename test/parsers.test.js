@@ -1,0 +1,56 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import fs from "node:fs";
+import path from "node:path";
+import * as cheerio from "cheerio";
+
+import { extraerGacetasRecientes, extraerResultadosContenido, extraerEnlacesSiguiente } from "../src/connectors/gaceta-oficial.js";
+import { extraerResultadosBusqueda as extraerDigestoResultados } from "../src/connectors/digesto-legislativo.js";
+import { extraerResultados as extraerCsjResultados } from "../src/connectors/csj-legislacion.js";
+import { parseJurisprudenciaRows } from "../src/connectors/csj-jurisprudencia.js";
+import { slugify } from "../src/connectors/leyes-bacn.js";
+
+const fixture = (name) => fs.readFileSync(path.join("test", "fixtures", name), "utf8");
+
+test("gaceta fixtures", () => {
+  const $home = cheerio.load(fixture("gaceta-home.html"));
+  const recientes = extraerGacetasRecientes($home);
+  assert.equal(recientes.length, 3);
+  assert.equal(recientes[0].fecha, "26/06/2026");
+
+  const $search = cheerio.load(fixture("gaceta-search.html"));
+  const resultados = extraerResultadosContenido($search);
+  assert.equal(resultados.length, 1);
+  assert.equal(resultados[0].numero, "3648");
+  assert.equal(extraerEnlacesSiguiente($search).length, 1);
+});
+
+test("digesto search fixture", () => {
+  const $ = cheerio.load(fixture("digesto-search.html"));
+  const resultados = extraerDigestoResultados($);
+  assert.equal(resultados.length, 1);
+  assert.equal(resultados[0].titulo, "Ley Nº 3230 del 29 de junio de 2007");
+});
+
+test("csj legislacion search fixture", () => {
+  const $ = cheerio.load(fixture("csj-legislacion-search.html"));
+  const resultados = extraerCsjResultados($, 10);
+  assert.equal(resultados.length, 1);
+  assert.equal(resultados[0].titulo, "Ley 5134 /2013");
+  assert.equal(resultados[0].institucion, "Ministerio de Hacienda");
+});
+
+test("bacn slugify", () => {
+  assert.equal(
+    slugify("Ley Nº 7341/2024 / QUE ESTABLECE EL TRATAMIENTO INTEGRAL A PERSONAS CON ENDOMETRIOSIS Y ADENOMIOSIS."),
+    "ley-n-7341-2024-que-establece-el-tratamiento-integral-a-personas-con-endometriosis-y-adenomiosis"
+  );
+});
+
+test("jurisprudencia data fixture", () => {
+  const data = JSON.parse(fixture("csj-jurisprudencia-data.json"));
+  const rows = parseJurisprudenciaRows(data);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].codigo, "12345");
+  assert.equal(rows[0].sala, "SALA CONSTITUCIONAL");
+});
