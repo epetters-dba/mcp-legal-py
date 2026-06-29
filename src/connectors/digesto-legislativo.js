@@ -55,6 +55,40 @@ export function extraerResultadosBusqueda($) {
   return items;
 }
 
+function esHrefCategoria(href) {
+  if (!href) return false;
+  return /^\/\d+-[a-z0-9-]+\/\d+(?:\/[a-z0-9-]+)?\/?$/i.test(href) || /^\/\d+-[a-z0-9-]+\/\d+\/?/i.test(href);
+}
+
+export function extraerCategorias($) {
+  const categorias = [];
+  const vistos = new Set();
+
+  $("a[href]").each((_, el) => {
+    const href = $(el).attr("href");
+    if (!esHrefCategoria(href)) return;
+
+    const $el = $(el);
+    const texto =
+      cleanText($el.text()) ||
+      cleanText($el.attr("title")) ||
+      cleanText($el.attr("aria-label")) ||
+      cleanText($el.closest("li, .box, .item, .card, .row, .col, div").text());
+
+    const url = resolveUrl(BASE_URL, href);
+    const clave = `${url}|${texto}`;
+    if (vistos.has(clave)) return;
+    vistos.add(clave);
+
+    categorias.push({
+      nombre: texto || null,
+      url,
+    });
+  });
+
+  return categorias.filter((item) => item.url && item.nombre);
+}
+
 export function registerDigestoTools(server, { z }) {
   server.tool(
     "digesto__listar_categorias",
@@ -68,23 +102,7 @@ export function registerDigestoTools(server, { z }) {
       assertOk(res, "Digesto Legislativo - listar categorías");
 
       const $ = cheerio.load(res.data);
-      const categorias = [];
-
-      $("a[href]").each((_, el) => {
-        const href = $(el).attr("href");
-        const texto = cleanText($(el).text());
-        if (!href || !texto) return;
-        // Las categorías reales tienen el patrón /{slug}/{id}/ con un slug
-        // que empieza con número, ej: /1-administrativa/1/ o
-        // /16-educacion-y-cultura/305/166-cultura
-        if (/^\/\d+-[a-z0-9-]+\/\d+\/?/i.test(href)) {
-          categorias.push({
-            nombre: texto,
-            url: resolveUrl(BASE_URL, href),
-          });
-        }
-      });
-
+      const categorias = extraerCategorias($);
       return successContent({ source: BASE_URL, total: categorias.length, categorias });
     }
   );

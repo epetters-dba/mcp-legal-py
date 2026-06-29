@@ -5,7 +5,7 @@ import path from "node:path";
 import * as cheerio from "cheerio";
 
 import { extraerGacetasRecientes, extraerResultadosContenido, extraerEnlacesSiguiente } from "../src/connectors/gaceta-oficial.js";
-import { extraerResultadosBusqueda as extraerDigestoResultados } from "../src/connectors/digesto-legislativo.js";
+import { extraerCategorias as extraerDigestoCategorias, extraerResultadosBusqueda as extraerDigestoResultados } from "../src/connectors/digesto-legislativo.js";
 import { extraerResultados as extraerCsjResultados } from "../src/connectors/csj-legislacion.js";
 import { parseJurisprudenciaRows } from "../src/connectors/csj-jurisprudencia.js";
 import { slugify } from "../src/connectors/leyes-bacn.js";
@@ -38,6 +38,27 @@ test("digesto search fixture", () => {
   const multiple = extraerDigestoResultados($multi);
   assert.equal(multiple.length, 2);
   assert.equal(multiple[1].titulo, "Ley Nº 1500 del 12 de agosto de 2008");
+});
+
+test("digesto categories tolerate nested anchors", () => {
+  const $ = cheerio.load(`
+    <html>
+      <body>
+        <div class="card">
+          <div class="title">
+            <a href="/16-educacion-y-cultura/305/166-cultura" title="Educacion y Cultura">Educacion y Cultura</a>
+          </div>
+        </div>
+        <div class="card">
+          <a href="/1-administrativa/1/">Administrativa</a>
+        </div>
+      </body>
+    </html>
+  `);
+  const categorias = extraerDigestoCategorias($);
+  assert.equal(categorias.length, 2);
+  assert.equal(categorias[0].nombre, "Educacion y Cultura");
+  assert.equal(categorias[1].nombre, "Administrativa");
 });
 
 test("csj legislacion search fixture", () => {
