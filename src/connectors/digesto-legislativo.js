@@ -54,6 +54,30 @@ function descripcionDesdeTexto(texto, titulo) {
   return limpio;
 }
 
+function tipoArchivoDesdeUrl(url) {
+  const sinQuery = String(url ?? "").split("?")[0].toLowerCase();
+  if (sinQuery.endsWith(".pdf")) return "pdf";
+  if (sinQuery.endsWith(".doc") || sinQuery.endsWith(".docx")) return "doc";
+  return null;
+}
+
+function extraerArchivosDigesto($, $el) {
+  const enlaces = $el
+    .find("a[href]")
+    .map((_, a) => {
+      const href = $(a).attr("href") || "";
+      if (!/\.(pdf|docx?|PDF|DOCX?)(\?|$)/.test(href) && !/\/ups\//i.test(href)) return null;
+      return resolveUrl(BASE_URL, href);
+    })
+    .get()
+    .filter(Boolean);
+
+  return enlaces.map((url, index) => ({
+    tipo: tipoArchivoDesdeUrl(url),
+    url,
+  })).filter((archivo) => archivo.tipo);
+}
+
 function esRuidoDigesto(texto) {
   return /^(‹|›|anterior|siguiente|10 por página|ordenar por|título a-z|^\d+$|no se han encontrado resultados)$/i.test(
     cleanText(texto)
@@ -70,13 +94,30 @@ function pareceNormaDigesto(titulo, descripcion, url) {
   return tituloOk && urlOk;
 }
 
+function normalizarClave(texto) {
+  return cleanText(texto).toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function urlDetalleDigesto($, $el) {
+  const enlaces = $el
+    .find("a[href]")
+    .map((_, a) => $(a).attr("href") || "")
+    .get()
+    .filter(Boolean);
+  const match = enlaces.find((href) => /(?:\/detalles&id=\d+|detalles&id=\d+|\/[0-9]+-[a-z0-9-]+\/[0-9]+)/i.test(href));
+  const id = cleanText($el.attr("id") || "").match(/\d+/)?.[0] ?? null;
+  if (match) return match;
+  if (id) return `/detalles&id=${id}`;
+  return enlaces[0] ?? null;
+}
+
 function extraerItemDesdeNodo($, el) {
   const $el = $(el);
   const texto = cleanText($el.text());
   if (!texto) return null;
 
-  const enlace = $el.find("a[href]").filter((_, a) => /\/detalles|\/detalle_publicacion|\/[0-9]+-[a-z0-9-]+\/[0-9]+/i.test($(a).attr("href") || "")).first();
-  const href = enlace.attr("href") ?? $el.attr("href") ?? null;
+  const enlace = $el.find("a[href]").filter((_, a) => /(?:\/detalles|detalles&id=|\/detalle_publicacion|\/[0-9]+-[a-z0-9-]+\/[0-9]+)/i.test($(a).attr("href") || "")).first();
+  const href = urlDetalleDigesto($, $el) ?? enlace.attr("href") ?? $el.attr("href") ?? null;
   const url = href ? resolveUrl(BASE_URL, href) : null;
 
   const titulo =
@@ -97,6 +138,7 @@ function extraerItemDesdeNodo($, el) {
     titulo,
     descripcion: descripcion || null,
     url,
+    archivos: extraerArchivosDigesto($, $el),
     texto,
   };
 }
@@ -110,13 +152,16 @@ export function extraerResultadosBusqueda($) {
     const item = extraerItemDesdeNodo($, el);
     if (!item) continue;
 
-    const clave = item.url ? `url:${item.url}` : `titulo:${item.titulo}|${item.descripcion ?? ""}`;
+    const clave = item.url ? `url:${item.url}` : `titulo:${normalizarClave(item.titulo)}|${normalizarClave(item.descripcion ?? "")}`;
     if (vistos.has(clave)) continue;
     vistos.add(clave);
     items.push(item);
   }
 
   if (items.length > 0) return items;
+
+  const alternativo = extraerResultadoUnicoDigesto($);
+  if (alternativo.length > 0) return alternativo;
 
   const textoPlano = cleanText($("body").text());
   const lineas = textoPlano
@@ -136,12 +181,66 @@ export function extraerResultadosBusqueda($) {
       titulo: linea,
       descripcion,
       url: matchUrl ? resolveUrl(BASE_URL, matchUrl) : null,
+      archivos: [],
       texto: linea + (descripcion ? `\n${descripcion}` : ""),
     });
     if (items.length > 25) break;
   }
 
-  return items.filter((item) => pareceNormaDigesto(item.titulo, item.descripcion, item.url));
+  const dedupe = new Set();
+  return items
+    .filter((item) => pareceNormaDigesto(item.titulo, item.descripcion, item.url))
+    .filter((item) => {
+      const clave = item.url ? `url:${item.url}` : `titulo:${normalizarClave(item.titulo)}`;
+      if (dedupe.has(clave)) return false;
+      dedupe.add(clave);
+      return true;
+    });
+}
+
+function extraerResultadoUnicoDigesto($) {
+  const cuerpo = cleanText($("body").text());
+  if (!/total encontrados:/i.test(cuerpo) || !/(pdf|docx?)/i.test(cuerpo)) return [];
+
+  const filas = $("table tr, tbody tr, tr").toArray();
+  const titulo =
+    filas
+      .map((el) => cleanText($(el).find("td, th").first().text() || $(el).text()))
+      .find((linea) => linea && !/^(total encontrados:|pdf|docx?|doc|descargar)$/i.test(linea) && linea.length > 10) ||
+    $("h1, h2, h3, .title, .titulo")
+      .map((_, el) => cleanText($(el).text()))
+      .get()
+      .find(Boolean) ||
+    cuerpo.split("\n").map((linea) => linea.trim()).find((linea) => linea && !/^(total encontrados:|pdf|docx?|descargar)$/i.test(linea)) ||
+    null;
+
+  if (!titulo) return [];
+
+  const archivos = $("a[href]")
+    .map((_, el) => $(el).attr("href") || "")
+    .get()
+    .filter((href) => /\.(pdf|docx?)(\?|$)/i.test(href) || /\/ups\//i.test(href))
+    .map((href) => ({
+      tipo: tipoArchivoDesdeUrl(href),
+      url: resolveUrl(BASE_URL, href),
+    }))
+    .filter((archivo) => archivo.tipo);
+
+  const descripcion = cuerpo
+    .split("\n")
+    .map((linea) => linea.trim())
+    .filter(Boolean)
+    .find((linea) => !/^(total encontrados:|pdf|doc|docx?|documento|descargar)$/i.test(linea) && !titulo.includes(linea)) || null;
+
+  return [
+    {
+      titulo,
+      descripcion,
+      url: archivos[0]?.url ?? null,
+      archivos,
+      texto: cuerpo,
+    },
+  ];
 }
 
 function esHrefCategoria(href) {
@@ -300,15 +399,19 @@ export function registerDigestoTools(server, { z }) {
 
       const $ = cheerio.load(res.data);
       const resultados = extraerResultadosBusqueda($);
+      const alternativos = resultados.length > 0 ? resultados : extraerResultadoUnicoDigesto($);
+      const finalResultados = alternativos.length > 0 ? alternativos : [];
       const pagina = cleanText($("body").text());
+      const totalDetectado = pagina.match(/Total encontrados:\s*(\d+)/i)?.[1];
+      const total = totalDetectado ? Number(totalDetectado) : finalResultados.length;
 
-      if (resultados.length > 0) {
+      if (finalResultados.length > 0) {
         return searchContent({
           source: BASE_URL,
           query,
           categoria,
-          total: resultados.length,
-          resultados,
+          total,
+          resultados: finalResultados,
           endpoint: `${BASE_URL}/paginacion/buscar.php`,
         });
       }

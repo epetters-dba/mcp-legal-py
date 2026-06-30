@@ -61,7 +61,10 @@ function urlDetalleCSJ($, $el) {
     .get()
     .filter(Boolean);
   const match = enlaces.find((href) => /\/legislacion\/Consulta\/Detalle\/\d+|\/consulta\/detalle\/\d+|\/detalle\/\d+/i.test(href));
-  return match ?? enlaces[0] ?? null;
+  const id = cleanText($el.attr("id") || "").match(/\d+/)?.[0] ?? null;
+  if (match) return match;
+  if (id) return `/legislacion/Consulta/Detalle/${id}`;
+  return enlaces[0] ?? null;
 }
 
 export function extraerResultados($, limit = 25) {
@@ -80,6 +83,8 @@ export function extraerResultados($, limit = 25) {
       null;
     const gaceta = cleanText($el.find(".date, .fecha, time").first().text()) || null;
     const href = urlDetalleCSJ($, $el);
+    const idRaw = cleanText($el.attr("id") ?? "");
+    if (idRaw === "demo") continue;
     const ruido =
       esRuidoCSJ(titulo) ||
       esRuidoCSJ(descripcion) ||
@@ -89,11 +94,14 @@ export function extraerResultados($, limit = 25) {
 
     if (ruido) continue;
 
+    const id = idRaw.match(/\d+/)?.[0] ?? idRaw ?? null;
+    if (!id) continue;
+
     const clave = [titulo, descripcion ?? "", institucion ?? "", gaceta ?? "", href ?? ""].join("|");
     if (!titulo || vistos.has(clave)) continue;
     vistos.add(clave);
     resultados.push({
-      id: $el.attr("id") ?? null,
+      id,
       gaceta,
       titulo,
       descripcion,
@@ -195,11 +203,18 @@ export function registerCsjLegislacionTools(server, { z }) {
         });
       }
 
-      return errorContent("La búsqueda no devolvió resultados parseables o el HTML cambió de estructura.", {
+      const pagina = cleanText($("body").text());
+      const mensaje =
+        /no se han encontrado resultados/i.test(pagina) || /sin resultados/i.test(pagina)
+          ? "La búsqueda no devolvió resultados en la base legislativa."
+          : "La búsqueda no devolvió resultados parseables o el HTML cambió de estructura.";
+
+      return errorContent(mensaje, {
         source: `${BASE_URL}${PATH}`,
         query,
         total_mostrado: 0,
         resultados: [],
+        muestra: pagina.slice(0, 1200),
       });
     }
   );

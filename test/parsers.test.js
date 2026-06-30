@@ -81,6 +81,7 @@ test("digesto search fixture", () => {
   const noise = extraerDigestoResultados($noise);
   assert.equal(noise.length, 1);
   assert.equal(noise[0].titulo, "Ley Nº 1474 del 29 de junio de 2007");
+  assert.equal(noise[0].url, "https://digestolegislativo.gov.py/detalles&id=1474");
 });
 
 test("digesto search ignores category pager noise", () => {
@@ -96,6 +97,48 @@ test("digesto search ignores category pager noise", () => {
     </html>
   `);
   assert.equal(extraerDigestoResultados($).length, 0);
+});
+
+test("digesto search keeps detalle urls", () => {
+  const $ = cheerio.load(`
+    <html>
+      <body>
+        <div class="resultado">
+          <a href="detalles&id=1474">
+            <strong>Ley Nº 1474 del 29 de junio de 2007</strong>
+          </a>
+          <span class="desc">Dispone medidas tributarias</span>
+        </div>
+      </body>
+    </html>
+  `);
+  const resultados = extraerDigestoResultados($);
+  assert.equal(resultados.length, 1);
+  assert.equal(resultados[0].url, "https://digestolegislativo.gov.py/detalles&id=1474");
+});
+
+test("digesto search parses alternate single-result layout", () => {
+  const $ = cheerio.load(`
+    <html>
+      <body>
+        <div>Total encontrados: 1</div>
+        <table>
+          <tr>
+            <td>QUE APRUEBA EL PRESUPUESTO GENERAL DE LA NACIÓN</td>
+            <td><a href="/ups/leyes/presupuesto2024.pdf">PDF</a></td>
+            <td><a href="/ups/leyes/presupuesto2024.doc">DOC</a></td>
+          </tr>
+        </table>
+      </body>
+    </html>
+  `);
+  const resultados = extraerDigestoResultados($);
+  assert.equal(resultados.length, 1);
+  assert.equal(resultados[0].titulo, "QUE APRUEBA EL PRESUPUESTO GENERAL DE LA NACIÓN");
+  assert.equal(resultados[0].url, "https://digestolegislativo.gov.py/ups/leyes/presupuesto2024.pdf");
+  assert.equal(resultados[0].archivos.length, 2);
+  assert.equal(resultados[0].archivos[0].tipo, "pdf");
+  assert.equal(resultados[0].archivos[1].tipo, "doc");
 });
 
 test("digesto categories tolerate nested anchors", () => {
@@ -145,13 +188,13 @@ test("csj legislacion search fixture", () => {
     <html>
       <body>
         <table>
-          <tr>
+          <tr id="36">
             <td>248 - 2013</td>
             <td><a href="/legislacion/Consulta/Detalle/36">Ley 5134 /2013</a></td>
             <td>QUE APRUEBA LA CARTA CONVENIO</td>
             <td>Ministerio de Hacienda</td>
           </tr>
-          <tr>
+          <tr id="37">
             <td>249 - 2014</td>
             <td><strong>Decreto 1023</strong></td>
             <td>Reglamenta algo</td>
@@ -181,6 +224,13 @@ test("csj legislacion search fixture", () => {
           <span class="ministerio">Ministerio de Hacienda</span>
           <a href="/legislacion/Consulta/Detalle/999">ver</a>
         </div>
+        <div class="list-item box" id="999">
+          <span class="title">Ley 5131/2013</span>
+          <span class="date">248 - 2013</span>
+          <span class="desc">Ley de ejemplo</span>
+          <span class="ministerio">Ministerio de Hacienda</span>
+          <a href="/legislacion/Consulta/Detalle/999">ver</a>
+        </div>
       </body>
     </html>
   `);
@@ -188,6 +238,53 @@ test("csj legislacion search fixture", () => {
   assert.equal(filtered.length, 1);
   assert.equal(filtered[0].titulo, "Ley 5131/2013");
   assert.equal(filtered[0].gaceta, "248 - 2013");
+  assert.equal(filtered[0].url, "/legislacion/Consulta/Detalle/999");
+
+  const $duplicateNull = cheerio.load(`
+    <html>
+      <body>
+        <div class="list-item box">
+          <span class="title">Ley 5136/2013</span>
+          <span class="date">248 - 2013</span>
+          <span class="desc">Ley de ejemplo</span>
+          <span class="ministerio">Ministerio de Educación</span>
+        </div>
+        <div class="list-item box" id="31">
+          <span class="title">Ley 5136/2013</span>
+          <span class="date">248 - 2013</span>
+          <span class="desc">Ley de ejemplo</span>
+          <span class="ministerio">Ministerio de Educación</span>
+          <a href="/legislacion/Consulta/Detalle/31">ver</a>
+        </div>
+      </body>
+    </html>
+  `);
+  const deduped = extraerCsjResultados($duplicateNull, 10);
+  assert.equal(deduped.length, 1);
+  assert.equal(deduped[0].id, "31");
+
+  const $demo = cheerio.load(`
+    <html>
+      <body>
+        <div class="list-item box" id="demo">
+          <span class="title">Ley 5136/2013</span>
+          <span class="date">248 - 2013</span>
+          <span class="desc">DE EDUCACIÓN INCLUSIVA.</span>
+          <span class="ministerio">Ministerio de Educación y Cultura</span>
+        </div>
+        <div class="list-item box" id="31">
+          <span class="title">Ley 5136/2013</span>
+          <span class="date">248 - 2013</span>
+          <span class="desc">DE EDUCACIÓN INCLUSIVA.</span>
+          <span class="ministerio">Ministerio de Educación y Cultura</span>
+          <a href="/legislacion/Consulta/Detalle/31">ver</a>
+        </div>
+      </body>
+    </html>
+  `);
+  const demo = extraerCsjResultados($demo, 10);
+  assert.equal(demo.length, 1);
+  assert.equal(demo[0].id, "31");
 
   const $empty = cheerio.load(fixture("csj-legislacion-search-empty.html"));
   assert.equal(extraerCsjResultados($empty, 10).length, 0);

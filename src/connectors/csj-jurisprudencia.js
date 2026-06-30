@@ -296,6 +296,7 @@ export function registerCsjJurisprudenciaTools(server, { z }) {
         tribunal_origen: tribunalOrigen ?? "",
         total: 0,
         resultados: [],
+        nota: "El backend devolvió recordsTotal: 0; el problema parece estar en los filtros o la cobertura del origen, no en el parser.",
         muestra_html: cleanText(typeof dataRes.data === "string" ? dataRes.data : JSON.stringify(dataRes.data)).slice(0, 1200),
       });
     }
