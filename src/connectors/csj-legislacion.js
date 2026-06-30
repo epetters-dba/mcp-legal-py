@@ -29,18 +29,70 @@ export function formUrlEncoded(entries) {
   return body;
 }
 
+function tituloDesdeNodo($, el) {
+  const $el = $(el);
+  return (
+    cleanText($el.find(".title").first().text()) ||
+    cleanText($el.find("h1, h2, h3, h4, strong, b").first().text()) ||
+    cleanText($el.find("a[href]").first().text()) ||
+    cleanText($el.text())
+  );
+}
+
+function esRuidoCSJ(texto) {
+  const limpio = texto ? cleanText(texto) : "";
+  return /^(10 por página|ordenar por|título a-z|no se han encontrado resultados|anterior|siguiente|\d+|\.\.\.)$/i.test(
+    limpio
+  );
+}
+
+function pareceNormaCSJ(titulo, descripcion, gaceta) {
+  const combo = [titulo, descripcion, gaceta].filter(Boolean).join(" ").trim();
+  if (!combo) return false;
+  return /^(ley|decreto|resoluci[oó]n|constituci[oó]n|decreto ley|acuerdo|ordenanza|reglamento)\b/i.test(
+    cleanText(combo)
+  );
+}
+
 export function extraerResultados($, limit = 25) {
-  return $(".list-item.box")
-    .map((_, el) => ({
-      id: $(el).attr("id") ?? null,
-      gaceta: cleanText($(el).find(".date").first().text()) || null,
-      titulo: cleanText($(el).find(".title").first().text()) || null,
-      descripcion: cleanText($(el).find(".desc").first().text()) || null,
-      institucion: cleanText($(el).find(".ministerio").first().text()) || null,
-    }))
-    .get()
-    .filter((item) => item.titulo || item.descripcion)
-    .slice(0, limit);
+  const resultados = [];
+  const vistos = new Set();
+  const candidatos = $(".list-item.box, .list-item, .box, .result, .resultado, article, tr, li").toArray();
+
+  for (const el of candidatos) {
+    const $el = $(el);
+    const titulo = tituloDesdeNodo($, el);
+    const descripcion =
+      cleanText($el.find(".desc, .description, .detalle, .subtitle").first().text()) ||
+      null;
+    const institucion =
+      cleanText($el.find(".ministerio, .institution, .organo").first().text()) ||
+      null;
+    const gaceta = cleanText($el.find(".date, .fecha, time").first().text()) || null;
+    const href = $el.find("a[href]").first().attr("href") ?? null;
+    const ruido =
+      esRuidoCSJ(titulo) ||
+      esRuidoCSJ(descripcion) ||
+      esRuidoCSJ(institucion) ||
+      esRuidoCSJ(gaceta) ||
+      !pareceNormaCSJ(titulo, descripcion, gaceta);
+
+    if (ruido) continue;
+
+    const clave = [titulo, descripcion ?? "", institucion ?? "", gaceta ?? "", href ?? ""].join("|");
+    if (!titulo || vistos.has(clave)) continue;
+    vistos.add(clave);
+    resultados.push({
+      id: $el.attr("id") ?? null,
+      gaceta,
+      titulo,
+      descripcion,
+      institucion,
+      url: href ?? null,
+    });
+  }
+
+  return resultados.slice(0, limit);
 }
 
 export function registerCsjLegislacionTools(server, { z }) {
@@ -133,7 +185,7 @@ export function registerCsjLegislacionTools(server, { z }) {
         });
       }
 
-      return errorContent("La búsqueda no devolvió items .list-item.box, o cambió la estructura HTML del resultado.", {
+      return errorContent("La búsqueda no devolvió resultados parseables o el HTML cambió de estructura.", {
         source: `${BASE_URL}${PATH}`,
         query,
         total_mostrado: 0,

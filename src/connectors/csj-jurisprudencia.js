@@ -42,6 +42,36 @@ function extractCookie(setCookieHeader) {
   return setCookieHeader.split(";")[0];
 }
 
+function buildBusquedaPayload({
+  token,
+  texto,
+  anio,
+  sala,
+  materia,
+  tipoResolucion,
+  preopinante,
+  accionResuelta,
+  instancia,
+  tribunalOrigen,
+  normasReferencia,
+}) {
+  return formUrlEncoded([
+    ["__RequestVerificationToken", token],
+    ["PalabrasTexto", texto ?? ""],
+    ["TipoResolucion", tipoResolucion ?? ""],
+    ["Numero", ""],
+    ["Anno", anio ? String(anio) : ""],
+    ["RangoFecha", ""],
+    ["Materias", materia ?? ""],
+    ["Salas", sala ?? ""],
+    ["Preopinantes", preopinante ?? ""],
+    ["AccionesResueltas", accionResuelta ?? ""],
+    ["Instancias", instancia ?? ""],
+    ["TribunalesOrigen", tribunalOrigen ?? ""],
+    ["NormasReferencia", normasReferencia ?? texto ?? ""],
+  ]);
+}
+
 export function parseJurisprudenciaRows(data) {
   const rows = Array.isArray(data?.data) ? data.data : [];
   return rows.map((row) => ({
@@ -124,21 +154,19 @@ export function registerCsjJurisprudenciaTools(server, { z }) {
       }
       const cookie = extractCookie(criterioRes.headers?.["set-cookie"]);
 
-      const postBody = formUrlEncoded([
-        ["__RequestVerificationToken", token],
-        ["PalabrasTexto", texto ?? ""],
-        ["TipoResolucion", tipoResolucion ?? ""],
-        ["Numero", ""],
-        ["Anno", anio ? String(anio) : ""],
-        ["RangoFecha", ""],
-        ["Materias", materia ?? ""],
-        ["Salas", sala ?? ""],
-        ["Preopinantes", preopinante ?? ""],
-        ["AccionesResueltas", accionResuelta ?? ""],
-        ["Instancias", instancia ?? ""],
-        ["TribunalesOrigen", tribunalOrigen ?? ""],
-        ["NormasReferencia", normasReferencia ?? texto ?? ""],
-      ]);
+      const postBody = buildBusquedaPayload({
+        token,
+        texto,
+        anio,
+        sala,
+        materia,
+        tipoResolucion,
+        preopinante,
+        accionResuelta,
+        instancia,
+        tribunalOrigen,
+        normasReferencia,
+      });
 
       const busquedaRes = await http.post("/jurisprudencia/Home/Busqueda", postBody, {
         headers: {
@@ -149,6 +177,8 @@ export function registerCsjJurisprudenciaTools(server, { z }) {
         },
       });
       assertOk(busquedaRes, "CSJ Jurisprudencia - buscar criterios");
+      const cookieBusqueda = extractCookie(busquedaRes.headers?.["set-cookie"]);
+      const cookieGetData = [cookie, cookieBusqueda].filter(Boolean).join("; ");
 
       const pageHtml = cheerio.load(busquedaRes.data);
       const tableScript = cleanText(pageHtml("script").last().text());
@@ -208,13 +238,26 @@ export function registerCsjJurisprudenciaTools(server, { z }) {
           ["columns[5][orderable]", "true"],
           ["columns[5][search][value]", ""],
           ["columns[5][search][regex]", "false"],
+          ["__RequestVerificationToken", token],
+          ["PalabrasTexto", texto ?? ""],
+          ["TipoResolucion", tipoResolucion ?? ""],
+          ["Numero", ""],
+          ["Anno", anio ? String(anio) : ""],
+          ["RangoFecha", ""],
+          ["Materias", materia ?? ""],
+          ["Salas", sala ?? ""],
+          ["Preopinantes", preopinante ?? ""],
+          ["AccionesResueltas", accionResuelta ?? ""],
+          ["Instancias", instancia ?? ""],
+          ["TribunalesOrigen", tribunalOrigen ?? ""],
+          ["NormasReferencia", normasReferencia ?? texto ?? ""],
         ]),
         {
           headers: {
             "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
             Referer: `${BASE_URL}/jurisprudencia/Home/Busqueda`,
             "X-Requested-With": "XMLHttpRequest",
-            Cookie: cookie,
+            Cookie: cookieGetData,
           },
         }
       );
@@ -253,7 +296,10 @@ export function registerCsjJurisprudenciaTools(server, { z }) {
         tribunal_origen: tribunalOrigen ?? "",
         total: 0,
         resultados: [],
+        muestra_html: cleanText(typeof dataRes.data === "string" ? dataRes.data : JSON.stringify(dataRes.data)).slice(0, 1200),
       });
     }
   );
 }
+
+export { buildBusquedaPayload };

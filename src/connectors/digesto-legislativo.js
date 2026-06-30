@@ -31,33 +31,112 @@ export function searchParams(query, categoria) {
   return params;
 }
 
+function tituloDesdeTexto(texto) {
+  const lineas = cleanText(texto)
+    .split("\n")
+    .map((linea) => linea.trim())
+    .filter(Boolean);
+
+  return (
+    lineas.find((linea) => /^(ley|decreto|resoluci[oó]n|constituci[oó]n|acuerdo|ordenanza|disposici[oó]n|reglamento)\b/i.test(linea)) ??
+    lineas[0] ??
+    null
+  );
+}
+
+function descripcionDesdeTexto(texto, titulo) {
+  const limpio = cleanText(texto);
+  if (!limpio) return null;
+  if (titulo && limpio.startsWith(titulo)) {
+    const resto = limpio.slice(titulo.length).trim();
+    return resto || null;
+  }
+  return limpio;
+}
+
+function esRuidoDigesto(texto) {
+  return /^(‹|›|anterior|siguiente|10 por página|ordenar por|título a-z|^\d+$|no se han encontrado resultados)$/i.test(
+    cleanText(texto)
+  );
+}
+
+function extraerItemDesdeNodo($, el) {
+  const $el = $(el);
+  const texto = cleanText($el.text());
+  if (!texto) return null;
+
+  const enlace = $el.find("a[href]").filter((_, a) => /\/detalles|\/detalle_publicacion|\/[0-9]+-[a-z0-9-]+\/[0-9]+/i.test($(a).attr("href") || "")).first();
+  const href = enlace.attr("href") ?? $el.attr("href") ?? null;
+  const url = href ? resolveUrl(BASE_URL, href) : null;
+
+  const titulo =
+    cleanText($el.find(".title").first().text()) ||
+    cleanText($el.find("h1, h2, h3, h4, strong, b").first().text()) ||
+    cleanText(enlace.text()) ||
+    tituloDesdeTexto(texto);
+
+  if (!titulo || esRuidoDigesto(titulo) || esRuidoDigesto(texto)) return null;
+
+  const descripcion =
+    cleanText($el.find(".desc, .description, .detalle, .subtitle").first().text()) ||
+    descripcionDesdeTexto(texto, titulo);
+
+  if (descripcion && esRuidoDigesto(descripcion)) return null;
+
+  return {
+    titulo,
+    descripcion: descripcion || null,
+    url,
+    texto,
+  };
+}
+
 export function extraerResultadosBusqueda($) {
   const items = [];
   const vistos = new Set();
+  const candidatos = $("table tr, .list-item, .box, .result, .resultado, li, article, section").toArray();
 
-  $(".list-item.box").each((_, el) => {
-    const titulo = cleanText($(el).find(".title").first().text());
-    const desc = cleanText($(el).find(".desc").first().text());
-    const url = $(el).find("a[href]").first().attr("href");
-    const href = url ? resolveUrl(BASE_URL, url) : null;
-    const clave = [titulo, desc, href].join("|");
-    if (!titulo || vistos.has(clave)) return;
+  for (const el of candidatos) {
+    const item = extraerItemDesdeNodo($, el);
+    if (!item) continue;
+
+    const clave = item.url ? `url:${item.url}` : `titulo:${item.titulo}|${item.descripcion ?? ""}`;
+    if (vistos.has(clave)) continue;
     vistos.add(clave);
+    items.push(item);
+  }
 
+  if (items.length > 0) return items;
+
+  const textoPlano = cleanText($("body").text());
+  const lineas = textoPlano
+    .split("\n")
+    .map((linea) => linea.trim())
+    .filter(Boolean)
+    .filter((linea) => !esRuidoDigesto(linea));
+
+  for (let i = 0; i < lineas.length; i += 1) {
+    const linea = lineas[i];
+    if (!/^(ley|decreto|resoluci[oó]n|constituci[oó]n|acuerdo|ordenanza|disposici[oó]n|reglamento)\b/i.test(linea)) {
+      continue;
+    }
+    const descripcion = lineas[i + 1] && !esRuidoDigesto(lineas[i + 1]) ? lineas[i + 1] : null;
+    const matchUrl = textoPlano.match(/\/detalles&id=\d+/i)?.[0] ?? null;
     items.push({
-      titulo,
-      descripcion: desc || null,
-      url: href,
-      texto: cleanText($(el).text()),
+      titulo: linea,
+      descripcion,
+      url: matchUrl ? resolveUrl(BASE_URL, matchUrl) : null,
+      texto: linea + (descripcion ? `\n${descripcion}` : ""),
     });
-  });
+    if (items.length > 25) break;
+  }
 
   return items;
 }
 
 function esHrefCategoria(href) {
   if (!href) return false;
-  return /^\/\d+-[a-z0-9-]+\/\d+(?:\/[a-z0-9-]+)?\/?$/i.test(href) || /^\/\d+-[a-z0-9-]+\/\d+\/?/i.test(href);
+  return /\/\d+-[a-z0-9-]+\/\d+(?:\/[a-z0-9-]+)?\/?$/i.test(href) || /\/\d+-[a-z0-9-]+\/\d+\/?/i.test(href);
 }
 
 export function extraerCategorias($) {
@@ -76,7 +155,7 @@ export function extraerCategorias($) {
       cleanText($el.closest("li, .box, .item, .card, .row, .col, div").text());
 
     const url = resolveUrl(BASE_URL, href);
-    const clave = `${url}|${texto}`;
+    const clave = url;
     if (vistos.has(clave)) return;
     vistos.add(clave);
 
@@ -86,7 +165,44 @@ export function extraerCategorias($) {
     });
   });
 
-  return categorias.filter((item) => item.url && item.nombre);
+  if (categorias.length > 0) return categorias.filter((item) => item.url && item.nombre);
+
+  const fallback = [];
+  const fallbackVistos = new Set();
+  const candidatos = $("li, .card, .box, .item, .row, .col, div").toArray();
+
+  for (const el of candidatos) {
+    const texto = cleanText($(el).text());
+    if (!texto) continue;
+    const link = $(el)
+      .find("a[href]")
+      .filter((_, a) => esHrefCategoria($(a).attr("href")))
+      .first();
+    const href = link.attr("href") ?? null;
+    if (!href) continue;
+    const url = resolveUrl(BASE_URL, href);
+    const nombre = cleanText(link.text()) || tituloDesdeTexto(texto);
+    const clave = url;
+    if (fallbackVistos.has(clave) || !nombre) continue;
+    fallbackVistos.add(clave);
+    fallback.push({ nombre, url });
+  }
+
+  if (fallback.length > 0) return fallback;
+
+  const enlacesPlano = [];
+  $("a[href]").each((_, el) => {
+    const href = $(el).attr("href");
+    if (!esHrefCategoria(href)) return;
+    const nombre = cleanText($(el).text());
+    if (!nombre || esRuidoDigesto(nombre)) return;
+    enlacesPlano.push({
+      nombre,
+      url: resolveUrl(BASE_URL, href),
+    });
+  });
+
+  return enlacesPlano;
 }
 
 export function registerDigestoTools(server, { z }) {
@@ -187,7 +303,7 @@ export function registerDigestoTools(server, { z }) {
         });
       }
 
-      return errorContent("No se detectaron filas .list-item.box en la respuesta de búsqueda.", {
+      return errorContent("No se detectaron resultados parseables en la respuesta de búsqueda.", {
         source: BASE_URL,
         query,
         categoria,
