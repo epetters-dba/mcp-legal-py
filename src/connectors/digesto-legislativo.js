@@ -60,6 +60,16 @@ function esRuidoDigesto(texto) {
   );
 }
 
+function pareceNormaDigesto(titulo, descripcion, url) {
+  const combo = [titulo, descripcion].filter(Boolean).join(" ").trim();
+  if (!combo) return false;
+  const tituloOk = /^(ley|decreto|resoluci[oó]n|constituci[oó]n|acuerdo|ordenanza|disposici[oó]n|reglamento)\b/i.test(
+    cleanText(combo)
+  );
+  const urlOk = !url || /\/detalles&id=\d+|\/[0-9]+-[a-z0-9-]+\/[0-9]+/i.test(url);
+  return tituloOk && urlOk;
+}
+
 function extraerItemDesdeNodo($, el) {
   const $el = $(el);
   const texto = cleanText($el.text());
@@ -75,13 +85,13 @@ function extraerItemDesdeNodo($, el) {
     cleanText(enlace.text()) ||
     tituloDesdeTexto(texto);
 
-  if (!titulo || esRuidoDigesto(titulo) || esRuidoDigesto(texto)) return null;
-
   const descripcion =
     cleanText($el.find(".desc, .description, .detalle, .subtitle").first().text()) ||
     descripcionDesdeTexto(texto, titulo);
 
+  if (!titulo || esRuidoDigesto(titulo) || esRuidoDigesto(texto)) return null;
   if (descripcion && esRuidoDigesto(descripcion)) return null;
+  if (!pareceNormaDigesto(titulo, descripcion, url)) return null;
 
   return {
     titulo,
@@ -131,7 +141,7 @@ export function extraerResultadosBusqueda($) {
     if (items.length > 25) break;
   }
 
-  return items;
+  return items.filter((item) => pareceNormaDigesto(item.titulo, item.descripcion, item.url));
 }
 
 function esHrefCategoria(href) {

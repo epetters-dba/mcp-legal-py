@@ -83,6 +83,21 @@ test("digesto search fixture", () => {
   assert.equal(noise[0].titulo, "Ley Nº 1474 del 29 de junio de 2007");
 });
 
+test("digesto search ignores category pager noise", () => {
+  const $ = cheerio.load(`
+    <html>
+      <body>
+        <div class="pagination">
+          <a href="?page=1">‹ Anterior</a>
+          <a href="?page=2">...</a>
+          <a href="?page=3">Siguiente ›</a>
+        </div>
+      </body>
+    </html>
+  `);
+  assert.equal(extraerDigestoResultados($).length, 0);
+});
+
 test("digesto categories tolerate nested anchors", () => {
   const $ = cheerio.load(`
     <html>
@@ -150,6 +165,7 @@ test("csj legislacion search fixture", () => {
   assert.equal(generic.length, 2);
   assert.equal(generic[0].titulo, "Ley 5134 /2013");
   assert.equal(generic[1].titulo, "Decreto 1023");
+  assert.equal(generic[0].url, "/legislacion/Consulta/Detalle/36");
 
   const $noise = cheerio.load(`
     <html>

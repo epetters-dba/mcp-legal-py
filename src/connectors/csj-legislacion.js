@@ -54,6 +54,16 @@ function pareceNormaCSJ(titulo, descripcion, gaceta) {
   );
 }
 
+function urlDetalleCSJ($, $el) {
+  const enlaces = $el
+    .find("a[href]")
+    .map((_, a) => $(a).attr("href") || "")
+    .get()
+    .filter(Boolean);
+  const match = enlaces.find((href) => /\/legislacion\/Consulta\/Detalle\/\d+|\/consulta\/detalle\/\d+|\/detalle\/\d+/i.test(href));
+  return match ?? enlaces[0] ?? null;
+}
+
 export function extraerResultados($, limit = 25) {
   const resultados = [];
   const vistos = new Set();
@@ -69,7 +79,7 @@ export function extraerResultados($, limit = 25) {
       cleanText($el.find(".ministerio, .institution, .organo").first().text()) ||
       null;
     const gaceta = cleanText($el.find(".date, .fecha, time").first().text()) || null;
-    const href = $el.find("a[href]").first().attr("href") ?? null;
+    const href = urlDetalleCSJ($, $el);
     const ruido =
       esRuidoCSJ(titulo) ||
       esRuidoCSJ(descripcion) ||
@@ -88,7 +98,7 @@ export function extraerResultados($, limit = 25) {
       titulo,
       descripcion,
       institucion,
-      url: href ?? null,
+      url: href ? href : null,
     });
   }
 
